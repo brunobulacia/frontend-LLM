@@ -13,7 +13,12 @@ interface Message {
   isStreaming?: boolean;
 }
 
-export default function Chat({ mensajes }: { mensajes: Mensaje[] }) {
+interface ChatProps {
+  mensajes: Mensaje[];
+  chatId: string;
+}
+
+export default function Chat({ mensajes, chatId }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -21,7 +26,7 @@ export default function Chat({ mensajes }: { mensajes: Mensaje[] }) {
 
   const socket = useSocket();
 
-  // Cargar mensajes históricos desde REST API cuando el componente se monta
+  //PARA CARGAR LOS MENSAJES VIA REST API CUANDO SE RECARGA LA PAGINA
   useEffect(() => {
     if (mensajes && mensajes.length > 0) {
       const formattedMessages = mensajes.map(msg => ({
@@ -32,8 +37,11 @@ export default function Chat({ mensajes }: { mensajes: Mensaje[] }) {
         isStreaming: false
       }));
       setMessages(formattedMessages);
+    } else {
+      // Si no hay mensajes (nuevo chat), limpiar
+      setMessages([]);
     }
-  }, [mensajes]);
+  }, [mensajes, chatId]); // Recargar cuando cambian mensajes o chatId
 
   // Manejar respuestas del WebSocket en tiempo real
   useEffect(() => {
@@ -76,7 +84,7 @@ export default function Chat({ mensajes }: { mensajes: Mensaje[] }) {
               : msg
           )
         );
-      }, 1000); // 1 segundo después de la última actualización
+      }, 1000); 
     });
 
     return () => {
@@ -98,7 +106,7 @@ export default function Chat({ mensajes }: { mensajes: Mensaje[] }) {
 
     // Agregar mensaje del usuario
     const userMessage: Message = {
-      id: `user-${Date.now()}`, // ID único para mensajes en tiempo real
+      id: `user-${Date.now()}`,
       content: data.message,
       sender: 'user',
       timestamp: new Date(),
@@ -108,8 +116,11 @@ export default function Chat({ mensajes }: { mensajes: Mensaje[] }) {
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
     
+
+    //PA DEBUG EN EL NAVEGADOR 
+    console.log("Enviando prompt:", data.message);
     // Enviar a través del WebSocket
-    socket.emit("prompt", { prompt: data.message });
+    socket.emit("prompt", { chatId: chatId, prompt: data.message });
     
     // Limpiar formulario
     reset();
@@ -156,7 +167,6 @@ export default function Chat({ mensajes }: { mensajes: Mensaje[] }) {
               <p className={`text-xs mt-1 ${
                 message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
               }`}>
-                {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </p>
             </div>
           </div>

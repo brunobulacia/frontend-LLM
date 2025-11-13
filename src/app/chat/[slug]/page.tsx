@@ -2,29 +2,32 @@
 
 import Chat from "@/components/chat";
 import { getMensajes } from "@/api/mensajes";
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import { Mensaje } from "@/types/mensajes";
 
-export default function ChatPage() {
+export default function ChatPage({params} : {params: Promise<{ slug: string }>}) {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // En Next.js 15, usa el hook 'use' para unwrap la Promise
+  const { slug } = use(params);
+  console.log("ChatPage slug:", slug);
 
   useEffect(() => {
     const fetchMensajes = async () => {
       try {
         setIsLoading(true);
-        const data = await getMensajes('2b10ee99-3a04-48d4-b139-619ed211c56c');
+        const data = await getMensajes(slug);
         setMensajes(data);
       } catch (error) {
         console.error("Error al cargar mensajes:", error);
-        // En caso de error, continuar con array vacío
         setMensajes([]);
       } finally {
         setIsLoading(false);
       }
     };
     fetchMensajes();
-  }, []);
+  }, [slug]); // Agregar slug como dependencia
 
   if (isLoading) {
     return (
@@ -37,5 +40,5 @@ export default function ChatPage() {
     );
   }
 
-  return <Chat mensajes={mensajes} />;
+  return <Chat mensajes={mensajes} chatId={slug} />;
 }

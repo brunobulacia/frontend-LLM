@@ -1,6 +1,7 @@
 import axios from "@/lib/axios";
+import { Chat } from "@/types/chats";
 
-export const getChats = async () => {
+export const getChats = async (): Promise<Chat[]> => {
   const response = await axios.get("/chats");
   return response.data;
 };
