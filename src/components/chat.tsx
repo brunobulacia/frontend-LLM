@@ -1,6 +1,7 @@
 "use client"
 
 import { useSocket } from "@/hooks/socket/useSocket";
+import { Mensaje } from "@/types/mensajes";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 
@@ -12,11 +13,21 @@ interface Message {
   isStreaming?: boolean;
 }
 
-export default function Chat() {
+export default function Chat({ mensajes }: { mensajes: Mensaje[] }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { register, handleSubmit, reset } = useForm<{ message: string }>();
+
+  
+/*   if (mensajes) {
+    setMessages(mensajes.map(msg => ({
+      id: msg.id,
+      content: msg.contenido,
+      sender: msg.emisor === "USUARIO" ? "user" : "bot",
+      timestamp: msg.createdAt,
+    })));
+  } */
 
   const socket = useSocket();
 
