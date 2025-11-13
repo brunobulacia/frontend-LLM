@@ -19,18 +19,23 @@ export default function Chat({ mensajes }: { mensajes: Mensaje[] }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { register, handleSubmit, reset } = useForm<{ message: string }>();
 
-  
-/*   if (mensajes) {
-    setMessages(mensajes.map(msg => ({
-      id: msg.id,
-      content: msg.contenido,
-      sender: msg.emisor === "USUARIO" ? "user" : "bot",
-      timestamp: msg.createdAt,
-    })));
-  } */
-
   const socket = useSocket();
 
+  // Cargar mensajes históricos desde REST API cuando el componente se monta
+  useEffect(() => {
+    if (mensajes && mensajes.length > 0) {
+      const formattedMessages = mensajes.map(msg => ({
+        id: msg.id,
+        content: msg.contenido,
+        sender: msg.emisor === "USUARIO" ? "user" as const : "bot" as const,
+        timestamp: new Date(msg.createdAt),
+        isStreaming: false
+      }));
+      setMessages(formattedMessages);
+    }
+  }, [mensajes]);
+
+  // Manejar respuestas del WebSocket en tiempo real
   useEffect(() => {
     if (!socket) return;
 
@@ -40,10 +45,10 @@ export default function Chat({ mensajes }: { mensajes: Mensaje[] }) {
       setIsTyping(false);
       
       setMessages(prev => {
-        // Si el último mensaje es del bot y está siendo actualizado
+        // Si el último mensaje es del bot y está siendo actualizado (streaming)
         const lastMessage = prev[prev.length - 1];
         if (lastMessage && lastMessage.sender === 'bot' && lastMessage.isStreaming) {
-          // Actualizar el último mensaje del bot
+          // Actualizar el último mensaje del bot con el contenido nuevo
           return prev.map((msg, index) => 
             index === prev.length - 1 
               ? { ...msg, content: data.respuesta }
@@ -52,7 +57,7 @@ export default function Chat({ mensajes }: { mensajes: Mensaje[] }) {
         } else {
           // Crear un nuevo mensaje del bot
           return [...prev, {
-            id: Date.now().toString(),
+            id: `bot-${Date.now()}`, // ID único para mensajes en tiempo real
             content: data.respuesta,
             sender: 'bot',
             timestamp: new Date(),
@@ -91,21 +96,22 @@ export default function Chat({ mensajes }: { mensajes: Mensaje[] }) {
   const onSubmit = (data: { message: string }) => {
     if (!data.message.trim() || !socket) return;
 
-    // Add user message
+    // Agregar mensaje del usuario
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: `user-${Date.now()}`, // ID único para mensajes en tiempo real
       content: data.message,
       sender: 'user',
-      timestamp: new Date()
+      timestamp: new Date(),
+      isStreaming: false
     };
 
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
     
-    // Send to socket
+    // Enviar a través del WebSocket
     socket.emit("prompt", { prompt: data.message });
     
-    // Reset form
+    // Limpiar formulario
     reset();
   };
 
