@@ -34,9 +34,9 @@ export default function RootLayout({
       >
         <SidebarProvider>
           <AppSidebar />
-        <main>
-          {children}
-        </main>
+          <main className="w-full flex-1">
+            {children}
+          </main>
         </SidebarProvider>
       </body>
     </html>

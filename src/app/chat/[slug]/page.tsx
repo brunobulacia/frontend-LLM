@@ -9,7 +9,6 @@ export default function ChatPage({params} : {params: Promise<{ slug: string }>})
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // En Next.js 15, usa el hook 'use' para unwrap la Promise
   const { slug } = use(params);
   console.log("ChatPage slug:", slug);
 
