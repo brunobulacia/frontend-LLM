@@ -1,9 +1,11 @@
 "use client"
 
 import { useSocket } from "@/hooks/socket/useSocket";
-import { Mensaje } from "@/types/mensajes";
+import { Mensaje, TipoContenido } from "@/types/mensajes";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
+
+const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.replace('/api', '') || "http://localhost:4000";
 
 interface Message {
   id: string;
@@ -11,6 +13,10 @@ interface Message {
   sender: 'user' | 'bot';
   timestamp: Date;
   isStreaming?: boolean;
+  type?: 'text' | 'image';
+  imageUrl?: string;
+  modelUsed?: string;
+  revisedPrompt?: string;
 }
 
 interface ChatProps {
@@ -34,7 +40,9 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
         content: msg.contenido,
         sender: msg.emisor === "USUARIO" ? "user" as const : "bot" as const,
         timestamp: new Date(msg.createdAt),
-        isStreaming: false
+        isStreaming: false,
+        type: (msg.tipo === TipoContenido.IMAGEN ? "image" : "text") as 'text' | 'image',
+        imageUrl: msg.rutaImagen ? `${BACKEND_BASE_URL}/api/images/${msg.rutaImagen}` : undefined
       }));
       setMessages(formattedMessages);
     } else {
@@ -49,13 +57,14 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
 
     let streamTimeout: NodeJS.Timeout;
 
+    // Evento para respuestas de texto (original)
     socket.on("prompt-response", (data) => {
       setIsTyping(false);
       
       setMessages(prev => {
         // Si el último mensaje es del bot y está siendo actualizado (streaming)
         const lastMessage = prev[prev.length - 1];
-        if (lastMessage && lastMessage.sender === 'bot' && lastMessage.isStreaming) {
+        if (lastMessage && lastMessage.sender === 'bot' && lastMessage.isStreaming && lastMessage.type === 'text') {
           // Actualizar el último mensaje del bot con el contenido nuevo
           return prev.map((msg, index) => 
             index === prev.length - 1 
@@ -65,11 +74,12 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
         } else {
           // Crear un nuevo mensaje del bot
           return [...prev, {
-            id: `bot-${Date.now()}`, // ID único para mensajes en tiempo real
+            id: `bot-${Date.now()}`,
             content: data.respuesta,
             sender: 'bot',
             timestamp: new Date(),
-            isStreaming: true
+            isStreaming: true,
+            type: 'text'
           }];
         }
       });
@@ -87,14 +97,103 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
       }, 1000); 
     });
 
+    // Nuevos eventos para manejo de imágenes
+    socket.on('image-generation-start', (data) => {
+      console.log('Iniciando generación de imagen...', data);
+      setIsTyping(true);
+      
+      // Agregar mensaje temporal de "generando imagen"
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `loading-${Date.now()}`,
+          content: data.message || 'Generando imagen con DALL-E...',
+          sender: 'bot',
+          timestamp: new Date(),
+          isStreaming: true,
+          type: 'text',
+        },
+      ]);
+    });
+
+    socket.on('image-generation-complete', (data) => {
+      console.log('🖼️ Imagen completa recibida:', data);
+      console.log('📍 imageUrl recibida:', data.imageUrl);
+      console.log('🤖 Modelo usado:', data.modelUsed);
+      
+      // Probar si la URL responde correctamente
+      fetch(data.imageUrl)
+        .then(response => {
+          console.log('🔍 Test de URL de imagen:', response.status, response.statusText);
+          if (!response.ok) {
+            console.error('❌ El endpoint de imágenes no está funcionando correctamente');
+            console.error('❌ Verificar que el ImagesController esté registrado en el backend');
+          }
+        })
+        .catch(error => {
+          console.error('❌ Error al acceder a la URL de imagen:', error);
+        });
+      
+      setIsTyping(false);
+      
+      setMessages(prev => {
+        // Remover mensajes temporales de carga
+        const cleanMessages = prev.filter(msg => !msg.id.startsWith('loading-'));
+
+        const newMessage = {
+          id: `image-final-${Date.now()}`,
+          content: 'Imagen generada exitosamente',
+          sender: 'bot' as const,
+          timestamp: new Date(),
+          isStreaming: false,
+          type: 'image' as const,
+          imageUrl: data.imageUrl,
+          modelUsed: data.modelUsed,
+          revisedPrompt: data.revisedPrompt,
+        };
+
+        console.log('✅ Agregando mensaje de imagen al estado:', newMessage);
+
+        return [
+          ...cleanMessages,
+          newMessage,
+        ];
+      });
+    });
+
+    socket.on('image-generation-error', (data) => {
+      console.error('Error generando imagen:', data);
+      setIsTyping(false);
+      
+      setMessages(prev => {
+        const cleanMessages = prev.filter(
+          msg => !msg.id.startsWith('loading-')
+        );
+        return [
+          ...cleanMessages,
+          {
+            id: `error-${Date.now()}`,
+            content: data.error,
+            sender: 'bot',
+            timestamp: new Date(),
+            isStreaming: false,
+            type: 'text',
+          },
+        ];
+      });
+    });
+
     return () => {
       socket.off("prompt-response");
+      socket.off('image-generation-start');
+      socket.off('image-generation-complete');
+      socket.off('image-generation-error');
       clearTimeout(streamTimeout);
     };
   }, [socket]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
   };
 
   useEffect(() => {
@@ -110,19 +209,21 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
       content: data.message,
       sender: 'user',
       timestamp: new Date(),
-      isStreaming: false
+      isStreaming: false,
+      type: 'text' // Siempre texto para mensajes del usuario
     };
 
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
     
-
-    //PA DEBUG EN EL NAVEGADOR 
     console.log("Enviando prompt:", data.message);
-    // Enviar a través del WebSocket
-    socket.emit("prompt", { chatId: chatId, prompt: data.message });
     
-    // Limpiar formulario
+    // Siempre enviar como prompt genérico - el backend decide qué hacer
+    socket.emit("prompt", { 
+      chatId: chatId, 
+      prompt: data.message
+    });
+    
     reset();
   };
 
@@ -130,7 +231,7 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
     <div className="chat-container flex flex-col h-screen w-full bg-gray-50">
       <div className="bg-white border-b border-gray-200 p-4 shadow-sm">
         <h1 className="text-xl font-semibold text-gray-800">FICCT Noticias</h1>
-        <p className="text-sm text-gray-500">Ingresá la Noticia/Anuncio que deseás publicar</p>
+        <p className="text-sm text-gray-500">Escribe tu mensaje para generar contenido o imágenes</p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
@@ -142,40 +243,101 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
               </div>
-              <p className="text-lg font-medium">Iniciá con una Noticia o Anuncio</p>
-              <p className="text-sm mt-2">Escribí una Noticia/Anuncio a continuación para comenzar a generar contenido.</p>
+              <p className="text-lg font-medium">¡Hola! ¿En qué puedo ayudarte?</p>
+              <p className="text-sm mt-2">Puedo ayudarte a generar texto o imágenes. Solo escribe tu mensaje y yo me encargo del resto.</p>
             </div>
           )}
 
-          {messages.map((message) => (
+          {messages.map((message) => {
+            if (message.type === 'image') {
+              console.log('🖼️ Renderizando mensaje de imagen:', message);
+            }
+            
+            return (
             <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`px-6 py-4 rounded-2xl min-w-[100px] ${
                 message.sender === 'user' 
                   ? 'bg-blue-500 text-white rounded-br-sm max-w-[75%]' 
                   : 'bg-white text-gray-800 border border-gray-200 rounded-bl-sm shadow-sm max-w-[85%]'
               }`}>
-                <p className="whitespace-pre-wrap text-base leading-relaxed">{message.content}</p>
+
+                {/* Renderizar contenido según el tipo */}
+                {message.type === 'image' ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-600">{message.content}</p>
+                    
+                    {message.imageUrl ? (
+                      <div className="relative">
+                        <img
+                          src={message.imageUrl}
+                          alt="Imagen generada"
+                          className="max-w-full h-auto rounded-lg"
+                          onLoad={() => {
+                            console.log('🖼️ Imagen cargada correctamente:', message.imageUrl);
+                            scrollToBottom();
+                          }}
+                          onError={(e) => {
+                            console.error('❌ Error cargando imagen:', message.imageUrl, e);
+                            console.error('❌ Verificar que el backend tenga configurado el endpoint /images/:filename');
+                          }}
+                        />
+                        {message.modelUsed && (
+                          <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">
+                            {message.modelUsed.toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="relative bg-gray-100 rounded-lg p-8 text-center">
+                        <div className="text-gray-500">
+                          <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <p className="text-sm">Imagen no disponible</p>
+                          <p className="text-xs text-gray-400 mt-1">Verificar configuración del backend</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {message.revisedPrompt && message.revisedPrompt !== message.content && (
+                      <p className="text-xs text-gray-500 italic">
+                        Prompt mejorado: {message.revisedPrompt}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="whitespace-pre-wrap text-base leading-relaxed">{message.content}</p>
+                )}
+
                 {message.isStreaming && (
                   <div className="flex items-center mt-2">
                     <div className="flex space-x-1">
-                      <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse"></div>
-                      <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                      <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                      <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse"></div>
+                      <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
                     </div>
-                    <span className="text-xs text-gray-400 ml-2">escribiendo...</span>
+                    <span className="text-xs text-gray-400 ml-2">
+                      {message.type === 'image' ? 'Generando con DALL-E...' : 'Escribiendo...'}
+                    </span>
                   </div>
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
 
           {isTyping && (
             <div className="flex justify-start">
               <div className="bg-white text-gray-800 border border-gray-200 px-5 py-3 rounded-2xl rounded-bl-sm shadow-sm">
-                <div className="flex space-x-1.5">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                <div className="flex items-center space-x-2">
+                  <div className="flex space-x-1.5">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
+                  <span className="text-sm text-gray-600">
+                    Procesando...
+                  </span>
                 </div>
               </div>
             </div>
@@ -191,7 +353,7 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
           <input
             type="text"
             {...register("message", { required: true })}
-            placeholder="Escribí tu noticia o anuncio..."
+            placeholder="Escribí tu mensaje..."
             className="flex-1 px-5 py-3.5 text-base border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all w-full"
             disabled={isTyping}
           />

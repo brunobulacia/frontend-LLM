@@ -50,7 +50,6 @@ export function AppSidebar() {
   const handleCreateChat = async () => {
     const chatName = prompt("Ingresá el nombre del nuevo chat:");
     
-    // Si el usuario cancela o no ingresa nada, no crear el chat
     if (!chatName || chatName.trim() === "") {
       return;
     }
@@ -58,7 +57,7 @@ export function AppSidebar() {
     try {
       setIsCreating(true);
       const newChat = await createChat(chatName.trim());
-      setChats(prev => [newChat, ...prev]); // Agregar al inicio de la lista
+      setChats(prev => [newChat, ...prev]);
       router.push(`/chat/${newChat.id}`);
     } catch (error) {
       console.error("Error al crear chat:", error);
@@ -75,7 +74,7 @@ export function AppSidebar() {
         <button
           onClick={handleCreateChat}
           disabled={isCreating}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
         >
           <Plus size={20} />
           {isCreating ? "Creando..." : "Nuevo Chat"}
@@ -83,13 +82,13 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Chats</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-2xl font-bold px-2 py-6">Chats</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {chats.map((chat) => (
                 <SidebarMenuItem key={chat.id}>
                   <SidebarMenuButton asChild onClick={() => handleChatClick(chat.id)}>
-                      <div className="inline">{chat.nombre}</div>
+                      <div className="text-xl font-medium cursor-pointer py-4">{chat.nombre}</div>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

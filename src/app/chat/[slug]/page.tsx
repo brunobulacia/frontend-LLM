@@ -26,7 +26,7 @@ export default function ChatPage({params} : {params: Promise<{ slug: string }>})
       }
     };
     fetchMensajes();
-  }, [slug]); // Agregar slug como dependencia
+  }, [slug]);
 
   if (isLoading) {
     return (
