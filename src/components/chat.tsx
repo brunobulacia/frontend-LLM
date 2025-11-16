@@ -1,9 +1,10 @@
 "use client"
 
 import { useSocket } from "@/hooks/socket/useSocket";
-import { Mensaje, TipoContenido } from "@/types/mensajes";
+import { Mensaje, TipoContenido, ContenidoRedesSociales, EstadoPublicacion, ResultadoPublicacion } from "@/types/mensajes";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
+import { Clock, CheckCircle, AlertCircle, ExternalLink, Send } from "lucide-react";
 
 const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.replace('/api', '') || "http://localhost:4000";
 
@@ -13,10 +14,14 @@ interface Message {
   sender: 'user' | 'bot';
   timestamp: Date;
   isStreaming?: boolean;
-  type?: 'text' | 'image';
+  type?: 'text' | 'image' | 'social-content';
   imageUrl?: string;
   modelUsed?: string;
   revisedPrompt?: string;
+  contenidoRedesSociales?: ContenidoRedesSociales;
+  estadoPublicacion?: EstadoPublicacion;
+  imagenGenerada?: string;
+  mensajeId?: string;
 }
 
 interface ChatProps {
@@ -27,6 +32,7 @@ interface ChatProps {
 export default function Chat({ mensajes, chatId }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [publishingResults, setPublishingResults] = useState<Record<string, ResultadoPublicacion[]>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { register, handleSubmit, reset } = useForm<{ message: string }>();
 
@@ -41,8 +47,16 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
         sender: msg.emisor === "USUARIO" ? "user" as const : "bot" as const,
         timestamp: new Date(msg.createdAt),
         isStreaming: false,
-        type: (msg.tipo === TipoContenido.IMAGEN ? "image" : "text") as 'text' | 'image',
-        imageUrl: msg.rutaImagen ? `${BACKEND_BASE_URL}/api/images/${msg.rutaImagen}` : undefined
+        type: msg.tipo === TipoContenido.IMAGEN 
+          ? "image" as const 
+          : msg.tipo === TipoContenido.CONTENIDO_REDES_SOCIALES 
+            ? "social-content" as const 
+            : "text" as const,
+        imageUrl: msg.rutaImagen ? `${BACKEND_BASE_URL}/api/images/${msg.rutaImagen}` : undefined,
+        contenidoRedesSociales: msg.contenidoRedesSociales,
+        estadoPublicacion: msg.estadoPublicacion,
+        imagenGenerada: msg.imagenGenerada,
+        mensajeId: msg.id
       }));
       setMessages(formattedMessages);
     } else {
@@ -183,11 +197,90 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
       });
     });
 
+    // Eventos para contenido de redes sociales
+    socket.on('social-content-generated', (data) => {
+      console.log('📱 Contenido de redes sociales generado:', data);
+      setIsTyping(false);
+      
+      setMessages(prev => {
+        const cleanMessages = prev.filter(msg => !msg.isStreaming || msg.sender !== 'bot');
+
+        return [
+          ...cleanMessages,
+          {
+            id: `social-${Date.now()}`,
+            content: 'Contenido para redes sociales generado. Generando imagen...',
+            sender: 'bot',
+            timestamp: new Date(),
+            isStreaming: false,
+            type: 'social-content',
+            contenidoRedesSociales: data.contenido,
+            estadoPublicacion: EstadoPublicacion.PENDIENTE_CONFIRMACION,
+          },
+        ];
+      });
+    });
+
+    socket.on('social-image-generation-complete', (data) => {
+      console.log('🖼️ Imagen para redes sociales completada:', data);
+      
+      setMessages(prev => prev.map(msg => 
+        msg.type === 'social-content' && msg.estadoPublicacion === EstadoPublicacion.PENDIENTE_CONFIRMACION
+          ? {
+              ...msg,
+              imagenGenerada: data.imageUrl,
+              content: 'Contenido para redes sociales listo para publicar',
+              mensajeId: data.mensajeId
+            }
+          : msg
+      ));
+    });
+
+    socket.on('social-publish-start', (data) => {
+      console.log('🚀 Inicio de publicación:', data);
+      
+      setMessages(prev => prev.map(msg => 
+        msg.mensajeId === data.mensajeId
+          ? { ...msg, estadoPublicacion: EstadoPublicacion.PUBLICANDO }
+          : msg
+      ));
+    });
+
+    socket.on('social-publish-complete', (data) => {
+      console.log('✅ Publicación completada:', data);
+      
+      setPublishingResults(prev => ({
+        ...prev,
+        [data.mensajeId]: data.resultados
+      }));
+      
+      setMessages(prev => prev.map(msg => 
+        msg.mensajeId === data.mensajeId
+          ? { ...msg, estadoPublicacion: EstadoPublicacion.PUBLICADO }
+          : msg
+      ));
+    });
+
+    socket.on('social-publish-error', (data) => {
+      console.error('❌ Error en publicación:', data);
+      
+      setMessages(prev => prev.map(msg => 
+        msg.mensajeId === data.mensajeId
+          ? { ...msg, estadoPublicacion: EstadoPublicacion.ERROR }
+          : msg
+      ));
+    });
+
     return () => {
       socket.off("prompt-response");
       socket.off('image-generation-start');
       socket.off('image-generation-complete');
       socket.off('image-generation-error');
+      socket.off('social-content-generated');
+      socket.off('social-image-generation-complete');
+      socket.off('social-publish-start');
+      socket.off('social-publish-complete');
+      socket.off('social-publish-error');
       clearTimeout(streamTimeout);
     };
   }, [socket]);
@@ -225,6 +318,16 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
     });
     
     reset();
+  };
+
+  const confirmarPublicacion = (mensajeId: string) => {
+    if (!socket) return;
+    
+    console.log('🚀 Confirmando publicación para mensaje:', mensajeId);
+    socket.emit('confirm-social-publish', {
+      mensajeId: mensajeId,
+      chatId: chatId
+    });
   };
 
   return (
@@ -305,6 +408,133 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                       </p>
                     )}
                   </div>
+                ) : message.type === 'social-content' ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                      </svg>
+                      <span className="font-semibold text-blue-600">Contenido para Redes Sociales</span>
+                      
+                      {/* Estado de la publicación */}
+                      {message.estadoPublicacion === EstadoPublicacion.PENDIENTE_CONFIRMACION && (
+                        <span className="flex items-center gap-1 text-orange-600 text-sm">
+                          <Clock className="w-4 h-4" />
+                          Pendiente
+                        </span>
+                      )}
+                      {message.estadoPublicacion === EstadoPublicacion.PUBLICANDO && (
+                        <span className="flex items-center gap-1 text-blue-600 text-sm">
+                          <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                          Publicando...
+                        </span>
+                      )}
+                      {message.estadoPublicacion === EstadoPublicacion.PUBLICADO && (
+                        <span className="flex items-center gap-1 text-green-600 text-sm">
+                          <CheckCircle className="w-4 h-4" />
+                          Publicado
+                        </span>
+                      )}
+                      {message.estadoPublicacion === EstadoPublicacion.ERROR && (
+                        <span className="flex items-center gap-1 text-red-600 text-sm">
+                          <AlertCircle className="w-4 h-4" />
+                          Error
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Imagen generada para redes sociales */}
+                    {message.imagenGenerada && (
+                      <div className="relative">
+                        <img
+                          src={message.imagenGenerada}
+                          alt="Imagen para redes sociales"
+                          className="max-w-full h-auto rounded-lg border"
+                        />
+                      </div>
+                    )}
+
+                    {/* Contenido de cada red social */}
+                    {message.contenidoRedesSociales && (
+                      <div className="space-y-3">
+                        <div className="grid gap-3">
+                          {/* Facebook */}
+                          <div className="border rounded-lg p-3 bg-blue-50">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-5 h-5 bg-blue-600 rounded text-white text-xs flex items-center justify-center font-bold">f</div>
+                              <span className="font-medium">Facebook</span>
+                            </div>
+                            <p className="text-sm text-gray-700">{message.contenidoRedesSociales.facebook.caption}</p>
+                          </div>
+
+                          {/* Instagram */}
+                          <div className="border rounded-lg p-3 bg-gradient-to-br from-purple-50 to-pink-50">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-5 h-5 bg-gradient-to-br from-purple-600 to-pink-600 rounded text-white text-xs flex items-center justify-center font-bold">📷</div>
+                              <span className="font-medium">Instagram</span>
+                            </div>
+                            <p className="text-sm text-gray-700">{message.contenidoRedesSociales.instagram.caption}</p>
+                          </div>
+
+                          {/* LinkedIn */}
+                          <div className="border rounded-lg p-3 bg-blue-50">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-5 h-5 bg-blue-800 rounded text-white text-xs flex items-center justify-center font-bold">in</div>
+                              <span className="font-medium">LinkedIn</span>
+                            </div>
+                            <p className="text-sm text-gray-700">{message.contenidoRedesSociales.linkedin.caption}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Botón de confirmación o resultados */}
+                    {message.estadoPublicacion === EstadoPublicacion.PENDIENTE_CONFIRMACION && message.imagenGenerada && message.mensajeId && (
+                      <button
+                        onClick={() => confirmarPublicacion(message.mensajeId!)}
+                        className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                      >
+                        ✅ Publicar en todas las redes sociales
+                      </button>
+                    )}
+
+                    {/* Resultados de publicación */}
+                    {message.estadoPublicacion === EstadoPublicacion.PUBLICADO && message.mensajeId && publishingResults[message.mensajeId] && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-green-600">Resultados de la publicación:</h4>
+                        {publishingResults[message.mensajeId].map((resultado, index) => (
+                          <div key={index} className={`flex items-center justify-between p-2 rounded ${
+                            resultado.exito ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium capitalize">{resultado.plataforma}</span>
+                              {resultado.exito ? (
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                              ) : (
+                                <AlertCircle className="w-4 h-4 text-red-600" />
+                              )}
+                            </div>
+                            {resultado.exito && resultado.link && (
+                              <a 
+                                href={resultado.link} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                                Ver post
+                              </a>
+                            )}
+                            {!resultado.exito && resultado.error && (
+                              <span className="text-xs text-red-600">{resultado.error}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <p className="text-sm text-gray-600">{message.content}</p>
+                  </div>
                 ) : (
                   <p className="whitespace-pre-wrap text-base leading-relaxed">{message.content}</p>
                 )}
@@ -362,9 +592,7 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
             disabled={isTyping}
             className="px-5 py-3.5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shrink-0"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
+            <Send className="w-5 h-5" />
           </button>
         </form>
       </div>
