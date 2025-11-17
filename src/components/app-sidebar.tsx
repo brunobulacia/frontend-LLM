@@ -1,6 +1,6 @@
 "use client"
 
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
 import {
   Sidebar,
@@ -14,7 +14,7 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar";
 import { useEffect, useState } from "react";
-import { getChats, createChat } from "@/api/chats";
+import { getChats, createChat, deleteChat } from "@/api/chats";
 import { Chat } from "@/types/chats";
 import { useRouter } from "next/navigation";
 
@@ -22,6 +22,7 @@ export function AppSidebar() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
 
   const router = useRouter();
   
@@ -67,6 +68,37 @@ export function AppSidebar() {
     }
   }
 
+  const handleDeleteChat = async (chatId: string, chatName: string, event: React.MouseEvent) => {
+    // Prevenir que se active el click del chat
+    event.stopPropagation();
+    
+    const confirmDelete = confirm(`¿Estás seguro de que querés eliminar el chat "${chatName}"?`);
+    
+    if (!confirmDelete) {
+      return;
+    }
+
+    try {
+      setDeletingChatId(chatId);
+      await deleteChat(chatId);
+      
+      // Remover el chat de la lista
+      setChats(prev => prev.filter(chat => chat.id !== chatId));
+      
+      // Si estamos en el chat que se eliminó, redirigir al home
+      if (window.location.pathname === `/chat/${chatId}`) {
+        router.push('/');
+      }
+      
+      console.log(`Chat "${chatName}" eliminado exitosamente`);
+    } catch (error) {
+      console.error("Error al eliminar chat:", error);
+      alert("Error al eliminar el chat. Por favor, intentá de nuevo.");
+    } finally {
+      setDeletingChatId(null);
+    }
+  }
+
 
   return (
     <Sidebar>
@@ -87,9 +119,24 @@ export function AppSidebar() {
             <SidebarMenu>
               {chats.map((chat) => (
                 <SidebarMenuItem key={chat.id}>
-                  <SidebarMenuButton asChild onClick={() => handleChatClick(chat.id)}>
-                      <div className="text-xl font-medium cursor-pointer py-4">{chat.nombre}</div>
-                  </SidebarMenuButton>
+                  <div className="flex items-center justify-between group hover:bg-gray-100 rounded-lg transition-colors">
+                    <SidebarMenuButton asChild onClick={() => handleChatClick(chat.id)} className="flex-1">
+                      <div className="text-xl font-medium cursor-pointer py-4 px-2">{chat.nombre}</div>
+                    </SidebarMenuButton>
+                    
+                    <button
+                      onClick={(e) => handleDeleteChat(chat.id, chat.nombre, e)}
+                      disabled={deletingChatId === chat.id}
+                      className="opacity-0 group-hover:opacity-100 p-2 mr-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={`Eliminar chat "${chat.nombre}"`}
+                    >
+                      {deletingChatId === chat.id ? (
+                        <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <Trash2 size={16} />
+                      )}
+                    </button>
+                  </div>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

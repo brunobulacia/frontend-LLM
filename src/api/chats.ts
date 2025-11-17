@@ -10,3 +10,8 @@ export const createChat = async (nombre: string) => {
   const response = await axios.post("/chats", { nombre });
   return response.data;
 };
+
+export const deleteChat = async (chatId: string) => {
+  const response = await axios.delete(`/chats/${chatId}`);
+  return response.data;
+};
