@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { Clock, CheckCircle, AlertCircle, ExternalLink, Send } from "lucide-react";
 
-const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.replace('/api', '') || "http://localhost:4000";
+const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
 
 interface Message {
   id: string;
