@@ -489,6 +489,15 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                             </div>
                             <p className="text-sm text-gray-700">{message.contenidoRedesSociales.linkedin.caption}</p>
                           </div>
+
+                          {/* WhatsApp */}
+                          <div className="border rounded-lg p-3 bg-green-50">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-5 h-5 bg-green-600 rounded text-white text-xs flex items-center justify-center font-bold">📱</div>
+                              <span className="font-medium">WhatsApp Story</span>
+                            </div>
+                            <p className="text-sm text-gray-700">{message.contenidoRedesSociales.whatsapp.caption}</p>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -512,6 +521,19 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                             resultado.exito ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
                           }`}>
                             <div className="flex items-center gap-2">
+                              {/* Ícono específico por plataforma */}
+                              {resultado.plataforma === 'facebook' && (
+                                <div className="w-4 h-4 bg-blue-600 rounded text-white text-xs flex items-center justify-center font-bold">f</div>
+                              )}
+                              {resultado.plataforma === 'instagram' && (
+                                <div className="w-4 h-4 bg-gradient-to-br from-purple-600 to-pink-600 rounded text-white text-xs flex items-center justify-center">📷</div>
+                              )}
+                              {resultado.plataforma === 'linkedin' && (
+                                <div className="w-4 h-4 bg-blue-800 rounded text-white text-xs flex items-center justify-center font-bold">in</div>
+                              )}
+                              {resultado.plataforma === 'whatsapp' && (
+                                <div className="w-4 h-4 bg-green-600 rounded text-white text-xs flex items-center justify-center">📱</div>
+                              )}
                               <span className="font-medium capitalize">{resultado.plataforma}</span>
                               {resultado.exito ? (
                                 <CheckCircle className="w-4 h-4 text-green-600" />

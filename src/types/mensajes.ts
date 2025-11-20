@@ -16,7 +16,7 @@ export interface ContenidoRedesSociales {
   facebook: { caption: string };
   instagram: { caption: string };
   linkedin: { caption: string };
-  whatsapp: { titulo: string };
+  whatsapp: { caption: string };
   tiktok: { titulo: string; hashtags: string[] };
 }
 
