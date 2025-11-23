@@ -52,10 +52,10 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
           : msg.tipo === TipoContenido.CONTENIDO_REDES_SOCIALES 
             ? "social-content" as const 
             : "text" as const,
-        imageUrl: msg.rutaImagen ? `${BACKEND_BASE_URL}/api/images/${msg.rutaImagen}` : undefined,
+        imageUrl: msg.rutaImagen ? `${BACKEND_BASE_URL}/images/${msg.rutaImagen}` : undefined,
         contenidoRedesSociales: msg.contenidoRedesSociales,
         estadoPublicacion: msg.estadoPublicacion,
-        imagenGenerada: msg.rutaImagen ? `${BACKEND_BASE_URL}/api/images/${msg.rutaImagen}` : undefined,
+        imagenGenerada: msg.rutaImagen ? `${BACKEND_BASE_URL}/images/${msg.rutaImagen}` : undefined,
         mensajeId: msg.id
       }));
       setMessages(formattedMessages);
@@ -445,7 +445,7 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                         <img
                           src={message.imagenGenerada.startsWith('http') 
                             ? message.imagenGenerada 
-                            : `${BACKEND_BASE_URL}/api/images/${message.imagenGenerada}`}
+                            : `${BACKEND_BASE_URL}/images/${message.imagenGenerada}`}
                           alt="Imagen para redes sociales"
                           className="max-w-full h-auto rounded-lg border"
                           onLoad={() => {
