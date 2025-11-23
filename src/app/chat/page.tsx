@@ -5,13 +5,9 @@ import { useAuthStore } from '@/store/auth.store';
 import { useRouter } from 'next/navigation';
 
 function ChatPageContent() {
-  const { logout, user } = useAuthStore();
+  const { user } = useAuthStore();
   const router = useRouter();
 
-  const handleLogout = () => {
-    logout();
-    router.push('/');
-  };
 
   return (
     <div className="container mx-auto p-8">
@@ -20,12 +16,6 @@ function ChatPageContent() {
           <h1 className="text-3xl font-bold mb-2">FICCT Noticias</h1>
           <p className="text-gray-600">Bienvenido, {user.email}</p>
         </div>
-        <button
-          onClick={handleLogout}
-          className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-        >
-          Cerrar Sesión
-        </button>
       </div>
       <p className="mb-6">¡Comienza tu conversación ahora!</p>
     </div>

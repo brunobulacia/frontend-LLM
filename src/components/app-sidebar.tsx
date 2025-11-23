@@ -165,7 +165,7 @@ export function AppSidebar() {
       <SidebarFooter className="p-4 text-sm text-gray-600">
         <button
           onClick={handleLogout}
-          className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+          className="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
         >
           Cerrar Sesión
         </button>
