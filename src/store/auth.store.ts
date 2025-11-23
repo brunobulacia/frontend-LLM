@@ -39,8 +39,10 @@ export const useAuthStore = create<AuthStore>()(
         const { access_token, user } = loginResponse;
 
         // Guardar token en cookie para que el middleware pueda acceder
-        if (typeof document !== 'undefined') {
-          document.cookie = `auth-token=${access_token}; path=/; max-age=${7 * 24 * 60 * 60}`; // 7 días
+        if (typeof document !== "undefined") {
+          document.cookie = `auth-token=${access_token}; path=/; max-age=${
+            7 * 24 * 60 * 60
+          }`; // 7 días
         }
 
         set({
@@ -92,8 +94,9 @@ export const useAuthStore = create<AuthStore>()(
 
       logout: () => {
         // Eliminar token de cookies
-        if (typeof document !== 'undefined') {
-          document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        if (typeof document !== "undefined") {
+          document.cookie =
+            "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
         }
 
         set({
@@ -106,8 +109,9 @@ export const useAuthStore = create<AuthStore>()(
 
       clearAuth: () => {
         // Eliminar token de cookies
-        if (typeof document !== 'undefined') {
-          document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        if (typeof document !== "undefined") {
+          document.cookie =
+            "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
         }
 
         set({
@@ -159,8 +163,10 @@ export const useAuthStore = create<AuthStore>()(
       // Función para sincronizar token en cookies (útil en hidratación)
       syncTokenToCookie: () => {
         const { accessToken } = get();
-        if (accessToken && typeof document !== 'undefined') {
-          document.cookie = `auth-token=${accessToken}; path=/; max-age=${7 * 24 * 60 * 60}`;
+        if (accessToken && typeof document !== "undefined") {
+          document.cookie = `auth-token=${accessToken}; path=/; max-age=${
+            7 * 24 * 60 * 60
+          }`;
         }
       },
     }),
