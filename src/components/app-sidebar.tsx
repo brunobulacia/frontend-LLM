@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import { Plus, Trash2 } from "lucide-react";
 
@@ -12,20 +12,22 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarHeader,
+  SidebarFooter,
 } from "@/components/ui/sidebar";
 import { useEffect, useState } from "react";
 import { getChats, createChat, deleteChat } from "@/api/chats";
 import { Chat } from "@/types/chats";
 import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/store/auth.store";
 
 export function AppSidebar() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
-
+  const { logout, user } = useAuthStore();
   const router = useRouter();
-  
+
   useEffect(() => {
     const fetchChats = async () => {
       try {
@@ -42,15 +44,14 @@ export function AppSidebar() {
     fetchChats();
   }, []);
 
-
   const handleChatClick = (chatId: string) => {
     console.log("Chat seleccionado:", chatId);
     router.push(`/chat/${chatId}`);
-  }
+  };
 
   const handleCreateChat = async () => {
     const chatName = prompt("Ingresá el nombre del nuevo chat:");
-    
+
     if (!chatName || chatName.trim() === "") {
       return;
     }
@@ -58,7 +59,7 @@ export function AppSidebar() {
     try {
       setIsCreating(true);
       const newChat = await createChat(chatName.trim());
-      setChats(prev => [newChat, ...prev]);
+      setChats((prev) => [newChat, ...prev]);
       router.push(`/chat/${newChat.id}`);
     } catch (error) {
       console.error("Error al crear chat:", error);
@@ -66,14 +67,20 @@ export function AppSidebar() {
     } finally {
       setIsCreating(false);
     }
-  }
+  };
 
-  const handleDeleteChat = async (chatId: string, chatName: string, event: React.MouseEvent) => {
+  const handleDeleteChat = async (
+    chatId: string,
+    chatName: string,
+    event: React.MouseEvent
+  ) => {
     // Prevenir que se active el click del chat
     event.stopPropagation();
-    
-    const confirmDelete = confirm(`¿Estás seguro de que querés eliminar el chat "${chatName}"?`);
-    
+
+    const confirmDelete = confirm(
+      `¿Estás seguro de que querés eliminar el chat "${chatName}"?`
+    );
+
     if (!confirmDelete) {
       return;
     }
@@ -81,15 +88,15 @@ export function AppSidebar() {
     try {
       setDeletingChatId(chatId);
       await deleteChat(chatId);
-      
+
       // Remover el chat de la lista
-      setChats(prev => prev.filter(chat => chat.id !== chatId));
-      
+      setChats((prev) => prev.filter((chat) => chat.id !== chatId));
+
       // Si estamos en el chat que se eliminó, redirigir al home
       if (window.location.pathname === `/chat/${chatId}`) {
-        router.push('/');
+        router.push("/");
       }
-      
+
       console.log(`Chat "${chatName}" eliminado exitosamente`);
     } catch (error) {
       console.error("Error al eliminar chat:", error);
@@ -97,8 +104,12 @@ export function AppSidebar() {
     } finally {
       setDeletingChatId(null);
     }
-  }
+  };
 
+  const handleLogout = () => {
+    logout();
+    router.push("/");
+  };
 
   return (
     <Sidebar>
@@ -114,16 +125,24 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-2xl font-bold px-2 py-6">Chats</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-2xl font-bold px-2 py-6">
+            Chats
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {chats.map((chat) => (
                 <SidebarMenuItem key={chat.id}>
                   <div className="flex items-center justify-between group hover:bg-gray-100 rounded-lg transition-colors">
-                    <SidebarMenuButton asChild onClick={() => handleChatClick(chat.id)} className="flex-1">
-                      <div className="text-xl font-medium cursor-pointer py-4 px-2">{chat.nombre}</div>
+                    <SidebarMenuButton
+                      asChild
+                      onClick={() => handleChatClick(chat.id)}
+                      className="flex-1"
+                    >
+                      <div className="text-xl font-medium cursor-pointer py-4 px-2">
+                        {chat.nombre}
+                      </div>
                     </SidebarMenuButton>
-                    
+
                     <button
                       onClick={(e) => handleDeleteChat(chat.id, chat.nombre, e)}
                       disabled={deletingChatId === chat.id}
@@ -143,6 +162,14 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="p-4 text-sm text-gray-600">
+        <button
+          onClick={handleLogout}
+          className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+        >
+          Cerrar Sesión
+        </button>
+      </SidebarFooter>
     </Sidebar>
   );
 }
