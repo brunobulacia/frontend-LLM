@@ -4,8 +4,9 @@ import Chat from "@/components/chat";
 import { getMensajes } from "@/api/mensajes";
 import { useState, useEffect, use } from "react";
 import { Mensaje } from "@/types/mensajes";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
-export default function ChatPage({params} : {params: Promise<{ slug: string }>}) {
+function ChatPageContent({params} : {params: Promise<{ slug: string }>}) {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -40,4 +41,12 @@ export default function ChatPage({params} : {params: Promise<{ slug: string }>})
   }
 
   return <Chat mensajes={mensajes} chatId={slug} />;
+}
+
+export default function ChatPage({params} : {params: Promise<{ slug: string }>}) {
+  return (
+    <ProtectedRoute>
+      <ChatPageContent params={params} />
+    </ProtectedRoute>
+  );
 }

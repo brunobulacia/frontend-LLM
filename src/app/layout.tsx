@@ -6,6 +6,8 @@ import "./globals.css";
 //COMPONENTES PARA RENDERIZAR EL SIDEBAR A UN LADO
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
+import { AuthInitializer } from "@/components/auth/AuthInitializer";
+import { Toaster } from "sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,16 +30,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <SidebarProvider>
-          <AppSidebar />
-          <main className="w-full flex-1">
-            {children}
-          </main>
-        </SidebarProvider>
+   <html lang="en">
+      <body>
+        <AuthInitializer>
+          <main>{children}</main>
+          <Toaster />
+        </AuthInitializer>
       </body>
     </html>
   );

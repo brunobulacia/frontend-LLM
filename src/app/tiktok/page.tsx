@@ -1,7 +1,8 @@
 'use client';
 
-export default function TikTokPage() {
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
+function TikTokPageContent() {
     const handleLoginTikTok = async () => {
         try {
             // Redirigir a la API route que maneja el login con TikTok
@@ -34,5 +35,13 @@ export default function TikTokPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TikTokPage() {
+  return (
+    <ProtectedRoute>
+      <TikTokPageContent />
+    </ProtectedRoute>
   );
 }
