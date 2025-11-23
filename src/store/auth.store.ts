@@ -163,10 +163,16 @@ export const useAuthStore = create<AuthStore>()(
       // Función para sincronizar token en cookies (útil en hidratación)
       syncTokenToCookie: () => {
         const { accessToken } = get();
-        if (accessToken && typeof document !== "undefined") {
-          document.cookie = `auth-token=${accessToken}; path=/; max-age=${
-            7 * 24 * 60 * 60
-          }`;
+        if (typeof document !== "undefined") {
+          if (accessToken) {
+            document.cookie = `auth-token=${accessToken}; path=/; max-age=${
+              7 * 24 * 60 * 60
+            }`;
+          } else {
+            // Si no hay token, limpiar cookie
+            document.cookie =
+              "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+          }
         }
       },
     }),
