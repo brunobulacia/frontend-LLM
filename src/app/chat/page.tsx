@@ -2,12 +2,9 @@
 
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { useAuthStore } from '@/store/auth.store';
-import { useRouter } from 'next/navigation';
 
 function ChatPageContent() {
   const { user } = useAuthStore();
-  const router = useRouter();
-
 
   return (
     <div className="container mx-auto p-8">

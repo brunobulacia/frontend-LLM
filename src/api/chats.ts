@@ -6,8 +6,8 @@ export const getChats = async (): Promise<Chat[]> => {
   return response.data;
 };
 
-export const createChat = async (nombre: string) => {
-  const response = await axios.post("/chats", { nombre });
+export const createChat = async (nombre: string, userId: string) => {
+  const response = await axios.post("/chats", { nombre, userId });
   return response.data;
 };
 

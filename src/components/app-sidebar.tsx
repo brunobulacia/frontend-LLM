@@ -50,6 +50,9 @@ export function AppSidebar() {
   };
 
   const handleCreateChat = async () => {
+
+
+
     const chatName = prompt("Ingresá el nombre del nuevo chat:");
 
     if (!chatName || chatName.trim() === "") {
@@ -58,7 +61,7 @@ export function AppSidebar() {
 
     try {
       setIsCreating(true);
-      const newChat = await createChat(chatName.trim());
+      const newChat = await createChat(chatName.trim(), user.id);
       setChats((prev) => [newChat, ...prev]);
       router.push(`/chat/${newChat.id}`);
     } catch (error) {
