@@ -33,6 +33,7 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [publishingResults, setPublishingResults] = useState<Record<string, ResultadoPublicacion[]>>({});
+  const [aiVideoStatus, setAiVideoStatus] = useState<Record<string, { status: string; message: string; progress?: number }>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { register, handleSubmit, reset } = useForm<{ message: string }>();
 
@@ -271,6 +272,63 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
       ));
     });
 
+    // Eventos para videos IA
+    socket.on('ai-video-status', (data) => {
+      console.log('🤖 Estado video IA:', data);
+      
+      setAiVideoStatus(prev => ({
+        ...prev,
+        [data.mensajeId]: {
+          status: data.status,
+          message: data.message,
+          progress: data.progress
+        }
+      }));
+    });
+
+    socket.on('ai-video-complete', (data) => {
+      console.log('✅ Video IA completado:', data);
+      
+      setPublishingResults(prev => ({
+        ...prev,
+        [data.mensajeId]: data.resultados
+      }));
+      
+      setAiVideoStatus(prev => ({
+        ...prev,
+        [data.mensajeId]: {
+          status: 'completed',
+          message: data.message,
+          progress: 100
+        }
+      }));
+      
+      setMessages(prev => prev.map(msg => 
+        msg.mensajeId === data.mensajeId
+          ? { ...msg, estadoPublicacion: EstadoPublicacion.PUBLICADO }
+          : msg
+      ));
+    });
+
+    socket.on('ai-video-error', (data) => {
+      console.error('❌ Error video IA:', data);
+      
+      setAiVideoStatus(prev => ({
+        ...prev,
+        [data.mensajeId]: {
+          status: 'error',
+          message: data.message || data.error,
+          progress: 0
+        }
+      }));
+      
+      setMessages(prev => prev.map(msg => 
+        msg.mensajeId === data.mensajeId
+          ? { ...msg, estadoPublicacion: EstadoPublicacion.ERROR }
+          : msg
+      ));
+    });
+
     return () => {
       socket.off("prompt-response");
       socket.off('image-generation-start');
@@ -281,6 +339,9 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
       socket.off('social-publish-start');
       socket.off('social-publish-complete');
       socket.off('social-publish-error');
+      socket.off('ai-video-status');
+      socket.off('ai-video-complete');
+      socket.off('ai-video-error');
       clearTimeout(streamTimeout);
     };
   }, [socket]);
@@ -508,6 +569,37 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                             <p className="text-sm text-gray-700">{message.contenidoRedesSociales.tiktok.titulo}</p>
                           </div>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Estado de generación de video IA */}
+                    {message.mensajeId && aiVideoStatus[message.mensajeId] && (
+                      <div className="border rounded-lg p-3 bg-gradient-to-r from-purple-50 to-pink-50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-5 h-5 bg-gradient-to-r from-purple-600 to-pink-600 rounded text-white text-xs flex items-center justify-center font-bold">🤖</div>
+                          <span className="font-medium">Video IA para TikTok</span>
+                        </div>
+                        <div className={`text-sm ${
+                          aiVideoStatus[message.mensajeId]?.status === 'generating' ? 'text-blue-600' :
+                          aiVideoStatus[message.mensajeId]?.status === 'completed' ? 'text-green-600' :
+                          aiVideoStatus[message.mensajeId]?.status === 'error' ? 'text-red-600' :
+                          'text-gray-600'
+                        }`}>
+                          {aiVideoStatus[message.mensajeId]?.message}
+                        </div>
+                        {aiVideoStatus[message.mensajeId]?.progress !== undefined && aiVideoStatus[message.mensajeId]?.progress! < 100 && (
+                          <div className="mt-2">
+                            <div className="bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-gradient-to-r from-purple-600 to-pink-600 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${aiVideoStatus[message.mensajeId]?.progress || 0}%` }}
+                              />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {aiVideoStatus[message.mensajeId]?.progress || 0}% completado
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
 
