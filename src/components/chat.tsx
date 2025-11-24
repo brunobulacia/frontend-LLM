@@ -498,6 +498,15 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                             </div>
                             <p className="text-sm text-gray-700">{message.contenidoRedesSociales.whatsapp.caption}</p>
                           </div>
+
+                          {/* TikTok */}
+                          <div className="border rounded-lg p-3 bg-black/5">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-5 h-5 bg-black rounded text-white text-xs flex items-center justify-center font-bold">🎵</div>
+                              <span className="font-medium">TikTok</span>
+                            </div>
+                            <p className="text-sm text-gray-700">{message.contenidoRedesSociales.tiktok.titulo}</p>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -534,6 +543,11 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                               {resultado.plataforma === 'whatsapp' && (
                                 <div className="w-4 h-4 bg-green-600 rounded text-white text-xs flex items-center justify-center">📱</div>
                               )}
+
+                              {resultado.plataforma === 'tiktok' && (
+                                <div className="w-4 h-4 bg-black rounded text-white text-xs flex items-center justify-center">🎵</div>
+                              )}  
+
                               <span className="font-medium capitalize">{resultado.plataforma}</span>
                               {resultado.exito ? (
                                 <CheckCircle className="w-4 h-4 text-green-600" />
@@ -541,7 +555,7 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                                 <AlertCircle className="w-4 h-4 text-red-600" />
                               )}
                             </div>
-                            {resultado.exito && resultado.link && (
+                            {/* {resultado.exito && resultado.link && (
                               <a 
                                 href={resultado.link} 
                                 target="_blank" 
@@ -551,7 +565,7 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                                 <ExternalLink className="w-4 h-4" />
                                 Ver post
                               </a>
-                            )}
+                            )} */}
                             {!resultado.exito && resultado.error && (
                               <span className="text-xs text-red-600">{resultado.error}</span>
                             )}
