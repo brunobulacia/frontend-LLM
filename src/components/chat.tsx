@@ -647,7 +647,7 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                                 <AlertCircle className="w-4 h-4 text-red-600" />
                               )}
                             </div>
-                            {/* {resultado.exito && resultado.link && (
+                            {resultado.exito && resultado.link && (
                               <a 
                                 href={resultado.link} 
                                 target="_blank" 
@@ -657,7 +657,7 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                                 <ExternalLink className="w-4 h-4" />
                                 Ver post
                               </a>
-                            )} */}
+                            )}
                             {!resultado.exito && resultado.error && (
                               <span className="text-xs text-red-600">{resultado.error}</span>
                             )}
