@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { Clock, CheckCircle, AlertCircle, ExternalLink, Send } from "lucide-react";
 
-const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
+const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080/api";
 
 interface Message {
   id: string;
@@ -34,10 +34,49 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
   const [isTyping, setIsTyping] = useState(false);
   const [publishingResults, setPublishingResults] = useState<Record<string, ResultadoPublicacion[]>>({});
   const [aiVideoStatus, setAiVideoStatus] = useState<Record<string, { status: string; message: string; progress?: number }>>({});
+  const [blobUrls, setBlobUrls] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { register, handleSubmit, reset } = useForm<{ message: string }>();
 
   const socket = useSocket();
+
+  // Función para cargar imagen con fallback a blob URL
+  const loadImageWithFallback = async (originalUrl: string): Promise<string> => {
+    try {
+      // Si ya tenemos una blob URL para esta imagen, usarla
+      if (blobUrls[originalUrl]) {
+        return blobUrls[originalUrl];
+      }
+
+      // Intentar cargar la imagen vía fetch con headers ngrok
+      const response = await fetch(originalUrl, {
+        method: 'GET',
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+        },
+        mode: 'cors'
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      // Guardar la blob URL en el estado
+      setBlobUrls(prev => ({
+        ...prev,
+        [originalUrl]: blobUrl
+      }));
+
+      console.log('✅ Imagen convertida a blob URL:', originalUrl, '→', blobUrl);
+      return blobUrl;
+    } catch (error) {
+      console.error('❌ Error cargando imagen:', error);
+      throw error;
+    }
+  };
 
   //PARA CARGAR LOS MENSAJES VIA REST API CUANDO SE RECARGA LA PAGINA
   useEffect(() => {
@@ -136,20 +175,16 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
       console.log('📍 imageUrl recibida:', data.imageUrl);
       console.log('🤖 Modelo usado:', data.modelUsed);
       
-      // Probar si la URL responde correctamente
-      fetch(data.imageUrl)
-        .then(response => {
-          console.log('🔍 Test de URL de imagen:', response.status, response.statusText);
-          if (!response.ok) {
-            console.error('❌ El endpoint de imágenes no está funcionando correctamente');
-            console.error('❌ Verificar que el ImagesController esté registrado en el backend');
-          }
+      setIsTyping(false);
+      
+      // Convertir inmediatamente a blob URL para evitar problemas de carga
+      loadImageWithFallback(data.imageUrl)
+        .then(blobUrl => {
+          console.log('✅ Imagen convertida proactivamente a blob:', blobUrl);
         })
         .catch(error => {
-          console.error('❌ Error al acceder a la URL de imagen:', error);
+          console.warn('⚠️ No se pudo convertir imagen a blob proactivamente:', error);
         });
-      
-      setIsTyping(false);
       
       setMessages(prev => {
         // Remover mensajes temporales de carga
@@ -224,6 +259,15 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
 
     socket.on('social-image-generation-complete', (data) => {
       console.log('🖼️ Imagen para redes sociales completada:', data);
+      
+      // Convertir inmediatamente a blob URL
+      loadImageWithFallback(data.imageUrl)
+        .then(blobUrl => {
+          console.log('✅ Imagen de redes sociales convertida proactivamente a blob:', blobUrl);
+        })
+        .catch(error => {
+          console.warn('⚠️ No se pudo convertir imagen de redes sociales a blob proactivamente:', error);
+        });
       
       setMessages(prev => prev.map(msg => 
         msg.type === 'social-content' && msg.estadoPublicacion === EstadoPublicacion.PENDIENTE_CONFIRMACION
@@ -308,6 +352,9 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
           ? { ...msg, estadoPublicacion: EstadoPublicacion.PUBLICADO }
           : msg
       ));
+
+      // Recargar la página para mostrar el boton de publicación
+      location.reload();
     });
 
     socket.on('ai-video-error', (data) => {
@@ -345,6 +392,15 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
       clearTimeout(streamTimeout);
     };
   }, [socket]);
+
+  // Cleanup blob URLs cuando el componente se desmonte
+  useEffect(() => {
+    return () => {
+      Object.values(blobUrls).forEach(blobUrl => {
+        URL.revokeObjectURL(blobUrl);
+      });
+    };
+  }, [blobUrls]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
@@ -433,16 +489,33 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                     {message.imageUrl ? (
                       <div className="relative">
                         <img
-                          src={message.imageUrl}
+                          src={blobUrls[message.imageUrl] || message.imageUrl}
                           alt="Imagen generada"
                           className="max-w-full h-auto rounded-lg"
+                          crossOrigin="anonymous"
+                          referrerPolicy="no-referrer"
                           onLoad={() => {
-                            console.log('🖼️ Imagen cargada correctamente:', message.imageUrl);
+                            console.log('✅ Imagen cargada correctamente:', message.imageUrl);
                             scrollToBottom();
                           }}
-                          onError={(e) => {
-                            console.error('❌ Error cargando imagen:', message.imageUrl, e);
-                            console.error('❌ Verificar que el backend tenga configurado el endpoint /images/:filename');
+                          onError={async (e) => {
+                            console.error('❌ Error cargando imagen:', message.imageUrl);
+                            console.error('❌ URL intentada:', e.currentTarget.src);
+                            
+                            // Solo intentar fallback si no es ya una blob URL
+                            if (!e.currentTarget.src.startsWith('blob:')) {
+                              try {
+                                const blobUrl = await loadImageWithFallback(message.imageUrl!);
+                                // Forzar re-render del componente padre para actualizar la imagen
+                                setMessages(prev => prev.map(msg => 
+                                  msg.id === message.id 
+                                    ? { ...msg, imageUrl: message.imageUrl } // Trigger re-render
+                                    : msg
+                                ));
+                              } catch (error) {
+                                console.error('❌ Error en fallback de imagen:', error);
+                              }
+                            }
                           }}
                         />
                         {message.modelUsed && (
@@ -504,17 +577,41 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                     {message.imagenGenerada && (
                       <div className="relative">
                         <img
-                          src={message.imagenGenerada.startsWith('http') 
-                            ? message.imagenGenerada 
-                            : `${BACKEND_BASE_URL}/images/${message.imagenGenerada}`}
+                          src={(() => {
+                            const originalUrl = message.imagenGenerada!.startsWith('http') 
+                              ? message.imagenGenerada! 
+                              : `${BACKEND_BASE_URL}/images/${message.imagenGenerada}`;
+                            return blobUrls[originalUrl] || originalUrl;
+                          })()}
                           alt="Imagen para redes sociales"
                           className="max-w-full h-auto rounded-lg border"
+                          crossOrigin="anonymous"
+                          referrerPolicy="no-referrer"
                           onLoad={() => {
-                            console.log('🖼️ Imagen de redes sociales cargada:', message.imagenGenerada);
+                            console.log('✅ Imagen de redes sociales cargada correctamente:', message.imagenGenerada);
                           }}
-                          onError={(e) => {
+                          onError={async (e) => {
+                            const originalUrl = message.imagenGenerada!.startsWith('http') 
+                              ? message.imagenGenerada! 
+                              : `${BACKEND_BASE_URL}/images/${message.imagenGenerada}`;
+                            
                             console.error('❌ Error cargando imagen de redes sociales:', message.imagenGenerada);
                             console.error('❌ URL intentada:', e.currentTarget.src);
+                            
+                            // Solo intentar fallback si no es ya una blob URL
+                            if (!e.currentTarget.src.startsWith('blob:')) {
+                              try {
+                                const blobUrl = await loadImageWithFallback(originalUrl);
+                                // Forzar re-render del componente para actualizar la imagen
+                                setMessages(prev => prev.map(msg => 
+                                  msg.id === message.id 
+                                    ? { ...msg, imagenGenerada: message.imagenGenerada } // Trigger re-render
+                                    : msg
+                                ));
+                              } catch (error) {
+                                console.error('❌ Error en fallback de imagen de redes sociales:', error);
+                              }
+                            }
                           }}
                         />
                       </div>
@@ -576,7 +673,7 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                     {message.mensajeId && aiVideoStatus[message.mensajeId] && (
                       <div className="border rounded-lg p-3 bg-gradient-to-r from-purple-50 to-pink-50">
                         <div className="flex items-center gap-2 mb-2">
-                          <div className="w-5 h-5 bg-gradient-to-r from-purple-600 to-pink-600 rounded text-white text-xs flex items-center justify-center font-bold">🤖</div>
+                          <div className="w-5 h-5 bg-gradient-to-r from-purple-600 to-pink-600 rounded text-white text-xs flex items-center justify-center font-bold"></div>
                           <span className="font-medium">Video IA para TikTok</span>
                         </div>
                         <div className={`text-sm ${
@@ -647,7 +744,7 @@ export default function Chat({ mensajes, chatId }: ChatProps) {
                                 <AlertCircle className="w-4 h-4 text-red-600" />
                               )}
                             </div>
-                            {resultado.exito && resultado.link && (
+                            {resultado.exito && resultado.link && resultado.plataforma  != 'whatsapp' && (
                               <a 
                                 href={resultado.link} 
                                 target="_blank" 
